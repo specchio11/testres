@@ -222,11 +222,20 @@ function buildSchedule() {
     if (arrivals[t] > 0) { arrivals[t]--; curTotal--; }
     else { const t2 = rand(0, 9); if (arrivals[t2] > 0) { arrivals[t2]--; curTotal--; } }
   }
-  // --- Step 2b: Ensure at least 2 breathing ticks (0 arrivals) in ticks 1-10 ---
+  // --- Step 2b: Guarantee tick 1 always has at least 1 customer ---
+  if (arrivals[0] === 0) {
+    arrivals[0] = 1;
+    // Steal from the fullest tick to keep total balanced
+    for (let t = 9; t >= 1; t--) {
+      if (arrivals[t] > 1) { arrivals[t]--; break; }
+    }
+  }
+  // --- Step 2c: Ensure at least 2 breathing ticks (0 arrivals) in ticks 2-10 ---
+  // Tick 1 (index 0) is protected — never cleared
   let zeroCount = arrivals.slice(0, 10).filter(n => n === 0).length;
   while (zeroCount < 2) {
-    // Clear a ramp/cooldown tick and redistribute to peak
-    const candidates = [0, 1, 7, 8, 9].filter(t => arrivals[t] > 0);
+    // Clear a ramp/cooldown tick (exclude tick 1) and redistribute to peak
+    const candidates = [1, 7, 8, 9].filter(t => arrivals[t] > 0);
     if (candidates.length === 0) break;
     candidates.sort((a,b) => arrivals[a] - arrivals[b]);
     const pick = candidates[0];

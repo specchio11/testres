@@ -36,7 +36,7 @@ const CONFIG = {
 // ===== 12 道菜品 =====
 const DISHES = [
   {
-    id:'D01', name:'青菜拌面', price:12, cost:5, time:1,
+    id:'D01', name:'青菜拌面', price:20, cost:5, time:1,
     tags:['快','素','家常'], baseRep:1,
     ingredients:{'面':1,'青菜':1,'香料':1},
     semi:[{type:'高汤', speedUp:false, bonus:null}],
@@ -44,7 +44,7 @@ const DISHES = [
     note:'早期稳菜，适合救耐心'
   },
   {
-    id:'D02', name:'清汤面', price:14, cost:6, time:1,
+    id:'D02', name:'清汤面', price:22, cost:6, time:1,
     tags:['快','清淡','鲜','暖'], baseRep:1,
     ingredients:{'面':1,'香料':1},
     semi:[{type:'高汤', speedUp:false, bonus:{rep:1}}],
@@ -52,7 +52,7 @@ const DISHES = [
     note:'用高汤时额外+1口碑'
   },
   {
-    id:'D03', name:'什锦炒饭', price:16, cost:7, time:1,
+    id:'D03', name:'什锦炒饭', price:24, cost:7, time:1,
     tags:['快','重口','家常'], baseRep:1,
     ingredients:{'米':1,'青菜':1,'香料':1},
     semi:[{type:'米饭', speedUp:false, bonus:{rep:1}}],
@@ -60,7 +60,7 @@ const DISHES = [
     note:'用米饭时额外+1口碑'
   },
   {
-    id:'D04', name:'麻婆豆腐', price:20, cost:9, time:1,
+    id:'D04', name:'麻婆豆腐', price:28, cost:9, time:1,
     tags:['辣','重口','家常','下饭'], baseRep:2,
     ingredients:{'豆腐':1,'香料':2},
     semi:[],
@@ -68,7 +68,7 @@ const DISHES = [
     note:'怕辣客不会点；高口碑快菜'
   },
   {
-    id:'D05', name:'宫保鸡丁', price:24, cost:11, time:2,
+    id:'D05', name:'宫保鸡丁', price:32, cost:11, time:2,
     tags:['辣','荤','下饭'], baseRep:2,
     ingredients:{'鸡':1,'香料':2},
     semi:[{type:'辣酱', speedUp:true, bonus:null}],
@@ -76,7 +76,7 @@ const DISHES = [
     note:'耗时2，辣酱可加速'
   },
   {
-    id:'D06', name:'红烧肉饭', price:26, cost:12, time:2,
+    id:'D06', name:'红烧肉饭', price:34, cost:12, time:2,
     tags:['荤','重口','暖','补'], baseRep:2,
     ingredients:{'猪':1,'香料':2,'米':1},
     semi:[
@@ -87,7 +87,7 @@ const DISHES = [
     note:'红烧酱加速+额外现金+2'
   },
   {
-    id:'D07', name:'海鲜烩', price:34, cost:16, time:2,
+    id:'D07', name:'海鲜烩', price:42, cost:16, time:2,
     tags:['鲜','荤','豪气'], baseRep:3,
     ingredients:{'鱼':1,'虾':1},
     semi:[{type:'高汤', speedUp:true, bonus:null}],
@@ -95,7 +95,7 @@ const DISHES = [
     note:'鲜双拼，仅B包可做；A/C包零覆盖'
   },
   {
-    id:'D08', name:'椒盐虾', price:30, cost:14, time:1,
+    id:'D08', name:'椒盐虾', price:38, cost:14, time:1,
     tags:['重口','荤','鲜','豪气'], baseRep:2,
     ingredients:{'虾':1,'香料':2},
     semi:[],
@@ -103,7 +103,7 @@ const DISHES = [
     note:'高利润快菜（需要虾）'
   },
   {
-    id:'D09', name:'菌菇炖汤', price:22, cost:10, time:2,
+    id:'D09', name:'菌菇炖汤', price:30, cost:10, time:2,
     tags:['清淡','素','暖','补'], baseRep:3,
     ingredients:{'灵菇':1,'香料':1},
     semi:[{type:'高汤', speedUp:true, bonus:null}],
@@ -111,7 +111,7 @@ const DISHES = [
     note:'VIP额外+1口碑；仅C包有灵菇'
   },
   {
-    id:'D10', name:'双灵小炒', price:26, cost:11, time:1,
+    id:'D10', name:'双灵小炒', price:34, cost:11, time:1,
     tags:['素','清淡','鲜'], baseRep:3,
     ingredients:{'灵菇':1,'灵葱':1},
     semi:[],
@@ -119,7 +119,7 @@ const DISHES = [
     note:'双灵材菜，仅C包可做；A/B包零覆盖'
   },
   {
-    id:'D11', name:'桂花甜汤', price:15, cost:6, time:1,
+    id:'D11', name:'桂花甜汤', price:23, cost:6, time:1,
     tags:['甜','清淡','暖'], baseRep:2,
     ingredients:{'香料':1},
     semi:[],
@@ -127,7 +127,7 @@ const DISHES = [
     note:'甜口快菜，补清淡/甜覆盖'
   },
   {
-    id:'D12', name:'一壶灵茶', price:10, cost:3, time:1,
+    id:'D12', name:'一壶灵茶', price:18, cost:3, time:1,
     tags:['快','清淡'], baseRep:1,
     ingredients:{'香料':1},
     semi:[],
@@ -143,19 +143,19 @@ DISHES.forEach(d => DISH_MAP[d.id] = d);
 // ===== 3 种进货包 =====
 const SUPPLY_PACKS = [
   {
-    id:'A', name:'A包·家常稳定', cost:80,
+    id:'A', name:'A包·家常稳定', cost:60,
     items:{'米':16,'面':14,'鸡':8,'猪':8,'豆腐':8,'青菜':14,'香料':16},
     spiritBonus:false,
     desc:'🌾米16 🍝面14 🐔鸡8 🐷猪8 🧈豆腐8 🥬青菜14 🧂香料16'
   },
   {
-    id:'B', name:'B包·鲜货海味', cost:120,
+    id:'B', name:'B包·鲜货海味', cost:90,
     items:{'米':14,'面':12,'鸡':6,'猪':6,'鱼':6,'虾':6,'青菜':12,'香料':16},
     spiritBonus:false,
     desc:'🌾米14 🍝面12 🐔鸡6 🐷猪6 🐟鱼6 🦐虾6 🥬青菜12 🧂香料16'
   },
   {
-    id:'C', name:'C包·灵材精品', cost:180,
+    id:'C', name:'C包·灵材精品', cost:130,
     items:{'米':14,'面':12,'鸡':6,'猪':6,'灵菇':6,'灵葱':6,'青菜':12,'香料':16},
     spiritBonus:true,
     desc:'🌾米14 🍝面12 🐔鸡6 🐷猪6 🍄灵菇6 🧅灵葱6 🥬青菜12 🧂香料16'
