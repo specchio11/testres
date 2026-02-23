@@ -68,20 +68,32 @@ function initGame(mode) {
 
 // ===== 客人生成 =====
 function generateTags() {
-  const num = rand(1, 2);
   const tags = [];
-  for (let i = 0; i < num; i++) {
-    const ok = TAG_POOL.filter(tp => {
-      if (tags.includes(tp.tag)) return false;
-      for (const c of TAG_CONFLICTS) {
-        if (tags.includes(c[0]) && tp.tag === c[1]) return false;
-        if (tags.includes(c[1]) && tp.tag === c[0]) return false;
-      }
-      return true;
-    });
+  function noConflict(tag) {
+    for (const c of TAG_CONFLICTS) {
+      if (tags.includes(c[0]) && tag === c[1]) return false;
+      if (tags.includes(c[1]) && tag === c[0]) return false;
+    }
+    return true;
+  }
+  // 1. Taste tags: 1-2
+  const numTaste = rand(1, 2);
+  const tasteTags = TAG_POOL.filter(tp => tp.type === 'taste');
+  for (let i = 0; i < numTaste; i++) {
+    const ok = tasteTags.filter(tp => !tags.includes(tp.tag) && noConflict(tp.tag));
     if (ok.length === 0) break;
     const chosen = weightedRandom(ok, ok.map(t => t.weight));
     tags.push(chosen.tag);
+  }
+  // 2. Personality tag: 30% chance, max 1
+  if (Math.random() < CONFIG.PERSONALITY_CHANCE) {
+    const ok = TAG_POOL.filter(tp => tp.type === 'personality' && !tags.includes(tp.tag) && noConflict(tp.tag));
+    if (ok.length > 0) { const chosen = weightedRandom(ok, ok.map(t => t.weight)); tags.push(chosen.tag); }
+  }
+  // 3. Situation tag: 15% chance, max 1
+  if (Math.random() < CONFIG.SITUATION_CHANCE) {
+    const ok = TAG_POOL.filter(tp => tp.type === 'situation' && !tags.includes(tp.tag) && noConflict(tp.tag));
+    if (ok.length > 0) { const chosen = weightedRandom(ok, ok.map(t => t.weight)); tags.push(chosen.tag); }
   }
   return tags;
 }
@@ -106,6 +118,29 @@ function hasTagMatch(gTags, dTags) {
     return p && p.type === 'taste';
   });
   return taste.some(t => dTags.includes(t));
+}
+
+function countTagMatches(gTags, dTags) {
+  const taste = gTags.filter(t => {
+    const p = TAG_POOL.find(tp => tp.tag === t);
+    return p && p.type === 'taste';
+  });
+  return taste.filter(t => dTags.includes(t)).length;
+}
+
+function calculateTip(customer, dish, isSub, matchCount) {
+  if (isSub) return 0;
+  // Continuous tip rate: every 1 rep above 20 → +0.25% tip (rep20=0%, rep60=10%, rep100=20%)
+  let tipRate = Math.max(0, (G.rep - 20) * 0.0025);
+  // Tag match: +5%
+  if (matchCount >= 1) tipRate += 0.05;
+  // 赶时间: +5%
+  if (customer.tags.includes('赶时间')) tipRate += 0.05;
+  if (tipRate <= 0) return 0;
+  let tip = Math.round(tipRate * dish.price);
+  // VIP: ×1.5
+  if (customer.tags.includes('VIP')) tip = Math.round(tip * 1.5);
+  return tip;
 }
 
 function generateCustomer() {
@@ -139,20 +174,15 @@ function generateCustomer() {
 }
 
 function generateDaySchedule() {
-  // ============================================================
-  // Advanced schedule generation with solvability guarantee
-  // ============================================================
   let bestSched = null;
   let bestScore = -Infinity;
-  for (let attempt = 0; attempt < 8; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     const sched = buildSchedule();
     const score = simulateSchedule(sched);
     if (score > bestScore) { bestScore = score; bestSched = sched; }
-    if (score >= 10) break; // excellent schedule found
+    if (score >= 8) break;
   }
-  // Post-processing: if best schedule still bad, patch patience
   if (bestScore < 0) patchSchedulePatience(bestSched);
-  // Place random tick-based events
   placeRandomEvents(bestSched);
   return bestSched;
 }
@@ -163,19 +193,32 @@ function createCustomer(menuDishes) {
 
   let orderId = null;
   if (G.mode !== 'omakase') {
-    // Normal mode: customer picks a dish based on tag weights
-    const weights = menuDishes.map(d => {
-      if (isHardReject(tags, d.tags)) return 0;
-      let w = CONFIG.W_NORMAL;
-      if (hasTagMatch(tags, d.tags)) w = CONFIG.W_MATCH;
-      if (isWeakConflict(tags, d.tags)) w *= CONFIG.W_WEAK;
-      return w;
-    });
-    if (weights.every(w => w === 0)) return null;
-    const dish = weightedRandom(menuDishes, weights);
-    orderId = dish.id;
+    const isPicky = tags.includes('挑剔');
+    const isFoodie = tags.includes('美食家');
+    if (isPicky) {
+      // 挑剔客：必须优先选标签匹配的菜
+      const matching = menuDishes.filter(d => !isHardReject(tags, d.tags) && hasTagMatch(tags, d.tags));
+      if (matching.length > 0) {
+        orderId = matching[rand(0, matching.length - 1)].id;
+      } else {
+        const available = menuDishes.filter(d => !isHardReject(tags, d.tags));
+        if (available.length === 0) return null;
+        orderId = available[rand(0, available.length - 1)].id;
+      }
+    } else {
+      const weights = menuDishes.map(d => {
+        if (isHardReject(tags, d.tags)) return 0;
+        let w = CONFIG.W_NORMAL;
+        if (hasTagMatch(tags, d.tags)) w = CONFIG.W_MATCH;
+        if (isWeakConflict(tags, d.tags)) w *= CONFIG.W_WEAK;
+        if (isFoodie && d.baseRep >= 2) w *= 2.0;
+        return w;
+      });
+      if (weights.every(w => w === 0)) return null;
+      const dish = weightedRandom(menuDishes, weights);
+      orderId = dish.id;
+    }
   }
-  // Omakase: orderId stays null — player chooses dish at cook time
 
   const avail = CUSTOMER_NAMES.filter(n => !G.usedNames.includes(n));
   const name = avail.length > 0 ? avail[rand(0, avail.length-1)] : CUSTOMER_NAMES[rand(0, CUSTOMER_NAMES.length-1)];
@@ -185,68 +228,117 @@ function createCustomer(menuDishes) {
   return { id: G.custCounter, name, order: orderId, patience: 0, maxPatience: 0, tags };
 }
 
+// ===== Difficulty scaling by day =====
+function getDayDifficulty(day, rep) {
+  const dayRanges = [
+    null,
+    {custMin:11, custMax:13, crunch:0},  // Day 1
+    {custMin:11, custMax:13, crunch:0},  // Day 2
+    {custMin:12, custMax:14, crunch:1},  // Day 3
+    {custMin:12, custMax:14, crunch:1},  // Day 4
+    {custMin:13, custMax:14, crunch:1},  // Day 5
+    {custMin:13, custMax:15, crunch:1},  // Day 6
+    {custMin:14, custMax:15, crunch:2},  // Day 7
+  ];
+  const base = dayRanges[Math.min(day, 7)] || dayRanges[7];
+  // Rep bonus: +1 only at rep 90+ (rewards sustained excellence)
+  const repBonus = Math.max(0, Math.floor((rep - 60) / 30));
+  return {
+    custMin: base.custMin + repBonus,
+    custMax: base.custMax + repBonus,
+    crunch: base.crunch,
+  };
+}
+
 // ===== Wave-based schedule builder =====
 function buildSchedule() {
   const menuDishes = G.todayMenu.map(id => getDish(id));
-  const T = CONFIG.TICKS_PER_DAY; // 12
+  const T = CONFIG.TICKS_PER_DAY; // 16
 
-  // --- Step 1: Decide total customers (10-14) ---
-  const totalCust = rand(10, 14);
+  // --- Step 1: Decide total customers (difficulty-scaled) ---
+  const diff = getDayDifficulty(G.day, G.rep);
+  const totalCust = rand(diff.custMin, diff.custMax);
 
-  // --- Step 2: Create wave pattern for arrivals ---
-  // Arrivals only in ticks 1-10; ticks 11-12 are buffer for finishing queue / prep
+  // --- Step 2: Create wave pattern for 16 ticks ---
+  // Arrivals allowed in ticks 1-15; tick 16 is the only hard buffer
   const density = [];
   for (let t = 1; t <= T; t++) {
-    if (t <= 2)       density.push(1.0);  // ramp
-    else if (t <= 3)  density.push(1.5);
-    else if (t <= 5)  density.push(2.0);  // peak start
-    else if (t <= 7)  density.push(1.8);  // peak mid — breathing room
-    else if (t <= 8)  density.push(1.5);  // peak tail
-    else if (t <= 10) density.push(1.0);  // cooldown
-    else              density.push(0);    // ticks 11-12: NO arrivals (buffer)
+    if (t <= 2)       density.push(1.0);   // ramp
+    else if (t <= 4)  density.push(1.5);   // rising
+    else if (t <= 7)  density.push(2.0);   // peak
+    else if (t <= 9)  density.push(1.8);   // peak mid
+    else if (t <= 11) density.push(1.5);   // peak tail
+    else if (t <= 13) density.push(1.0);   // cooldown
+    else if (t <= 15) density.push(0.5);   // late stragglers
+    else              density.push(0);     // tick 16: buffer only
   }
   const totalDensity = density.reduce((s,v) => s+v, 0);
-  // Distribute customers proportionally
   let arrivals = density.map(d => Math.round(d / totalDensity * totalCust));
-  // Clamp: 0-2 per tick, ticks 11-12 forced to 0
-  arrivals = arrivals.map((n, i) => (i >= 10) ? 0 : clamp(n, 0, 2));
-  // Adjust total to match target (only within ticks 1-10)
+  arrivals = arrivals.map((n, i) => (i >= 15) ? 0 : clamp(n, 0, 2));
   let curTotal = arrivals.reduce((s,v) => s+v, 0);
   while (curTotal < totalCust) {
-    const t = rand(3, 7); // add to peak ticks
+    const t = rand(3, 8);
     if (arrivals[t] < 2) { arrivals[t]++; curTotal++; }
-    else { const t2 = rand(0, 9); if (arrivals[t2] < 2) { arrivals[t2]++; curTotal++; } }
+    else { const t2 = rand(1, 14); if (arrivals[t2] < 2) { arrivals[t2]++; curTotal++; } }
   }
   while (curTotal > totalCust) {
-    const t = rand(7, 9); // remove from cooldown ticks
+    const t = rand(10, 14);
     if (arrivals[t] > 0) { arrivals[t]--; curTotal--; }
-    else { const t2 = rand(0, 9); if (arrivals[t2] > 0) { arrivals[t2]--; curTotal--; } }
+    else { const t2 = rand(1, 14); if (arrivals[t2] > 0) { arrivals[t2]--; curTotal--; } }
   }
-  // --- Step 2b: Guarantee tick 1 always has at least 1 customer ---
+
+  // --- Step 2b: Guarantee tick 1 always has exactly 1 customer ---
   if (arrivals[0] === 0) {
     arrivals[0] = 1;
-    // Steal from the fullest tick to keep total balanced
-    for (let t = 9; t >= 1; t--) {
+    for (let t = 14; t >= 1; t--) {
       if (arrivals[t] > 1) { arrivals[t]--; break; }
     }
+  } else if (arrivals[0] > 1) {
+    while (arrivals[0] > 1) {
+      let moved = false;
+      for (const pt of [4, 5, 6, 7, 3, 8]) {
+        if (arrivals[pt] < 2) { arrivals[pt]++; moved = true; break; }
+      }
+      if (!moved) break;
+      arrivals[0]--;
+    }
   }
-  // --- Step 2c: Ensure at least 2 breathing ticks (0 arrivals) in ticks 2-10 ---
-  // Tick 1 (index 0) is protected — never cleared
-  let zeroCount = arrivals.slice(0, 10).filter(n => n === 0).length;
-  while (zeroCount < 2) {
-    // Clear a ramp/cooldown tick (exclude tick 1) and redistribute to peak
-    const candidates = [1, 7, 8, 9].filter(t => arrivals[t] > 0);
+
+  // --- Step 2c: Ensure at least 3 breathing ticks (0 arrivals) in ticks 2-15 ---
+  let zeroCount = arrivals.slice(0, 15).filter(n => n === 0).length;
+  while (zeroCount < 3) {
+    const candidates = [1, 11, 12, 13, 14].filter(t => arrivals[t] > 0);
     if (candidates.length === 0) break;
     candidates.sort((a,b) => arrivals[a] - arrivals[b]);
     const pick = candidates[0];
-    // Move one customer to a peak tick that has room
     let moved = false;
-    for (const pt of [3, 4, 5, 6]) {
+    for (const pt of [4, 5, 6, 7, 8]) {
       if (arrivals[pt] < 2) { arrivals[pt]++; moved = true; break; }
     }
     if (!moved) break;
     arrivals[pick]--;
-    zeroCount = arrivals.slice(0, 10).filter(n => n === 0).length;
+    zeroCount = arrivals.slice(0, 15).filter(n => n === 0).length;
+  }
+
+  // --- Step 2d: Guarantee arrivals spread into ticks 13-15 ---
+  // Ensure at least 2 customers arrive in tick range 13-15
+  let tailCount = arrivals[12] + arrivals[13] + arrivals[14];
+  while (tailCount < 2) {
+    // Prefer tick 14 (index 13), then 13 (index 12), then 15 (index 14)
+    let added = false;
+    for (const ti of [13, 12, 14]) {
+      if (arrivals[ti] < 2) {
+        arrivals[ti]++;
+        // Steal from peak to keep total balanced
+        for (let t = 8; t >= 3; t--) {
+          if (arrivals[t] > 1) { arrivals[t]--; added = true; break; }
+        }
+        if (!added) { arrivals[ti]--; } // revert if couldn't steal
+        else { tailCount++; }
+        break;
+      }
+    }
+    if (!added) break;
   }
 
   // --- Step 3: Generate customers ---
@@ -267,14 +359,12 @@ function buildSchedule() {
 
   // --- Step 4: Balance dish distribution (normal mode only) ---
   if (G.mode !== 'omakase') {
-    // Count orders per dish; redistribute if any dish is over-represented (>40%)
     const orderCount = {};
     G.todayMenu.forEach(id => orderCount[id] = 0);
     allCustomers.forEach(c => orderCount[c.order] = (orderCount[c.order]||0) + 1);
     const maxPerDish = Math.ceil(allCustomers.length * 0.4);
     for (const c of allCustomers) {
       if (orderCount[c.order] > maxPerDish) {
-        // Reassign to the least-ordered compatible dish
         const sorted = G.todayMenu
           .filter(id => !isHardReject(c.tags, getDish(id).tags))
           .sort((a,b) => (orderCount[a]||0) - (orderCount[b]||0));
@@ -287,39 +377,44 @@ function buildSchedule() {
     }
   }
 
-  // --- Step 5: Assign patience (dish-time-aware + position-calibrated) ---
+  // --- Step 5: Assign patience ---
   for (const c of allCustomers) {
     const tickPos = c._tick;
-    const remaining = T - tickPos + 1; // ticks left in the day
-
-    // Base patience by dish time: 2T dishes need more patience
+    const remaining = T - tickPos + 1;
     let baseMin, baseMax;
     if (G.mode === 'omakase') {
-      // Omakase: no order, use general range (player decides dish)
-      baseMin = 4; baseMax = 6;
+      baseMin = 5; baseMax = 7;
     } else {
       const dish = getDish(c.order);
-      const dishTime = dish.time;
-      if (dishTime >= 2) { baseMin = 5; baseMax = 7; }
-      else               { baseMin = 4; baseMax = 6; }
+      if (dish.time >= 2) { baseMin = 6; baseMax = 8; }
+      else               { baseMin = 4; baseMax = 7; }
     }
-
-    // Late arrivals: cap patience to what's useful (no point having patience > remaining ticks)
-    baseMax = Math.min(baseMax, remaining);
+    // Late arrivals (tick 13+): guarantee survival to tick 16
+    // They need patience >= remaining to last until the final tick
+    if (tickPos >= 13) {
+      baseMin = remaining;
+      baseMax = Math.max(remaining, baseMax);
+    } else {
+      baseMax = Math.min(baseMax, remaining);
+    }
     baseMin = Math.min(baseMin, baseMax);
-    baseMin = Math.max(baseMin, 3); // absolute floor
-
+    baseMin = Math.max(baseMin, 3);
     c.patience = rand(baseMin, baseMax);
     c.maxPatience = c.patience;
+    // 慢性子: +1 patience
+    if (c.tags.includes('慢性子')) { c.patience++; c.maxPatience++; }
+    // 赶时间: -1 patience (min 2)
+    if (c.tags.includes('赶时间')) {
+      c.patience = Math.max(2, c.patience - 1);
+      c.maxPatience = c.patience;
+    }
     delete c._tick;
   }
 
-  // --- Step 6: Create 1 "crunch window" (dilemma moment) ---
-  // Find a tick with 2 arrivals and set one customer's patience tight
+  // --- Step 6: Create crunch windows (difficulty-scaled) ---
   let crunchCount = 0;
-  for (let t = 0; t < sched.length && crunchCount < 1; t++) {
-    if (sched[t].customers.length === 2 && t >= 2 && t <= 7) {
-      // Make one of the two have tight patience → forces prioritization
+  for (let t = 0; t < sched.length && crunchCount < diff.crunch; t++) {
+    if (sched[t].customers.length === 2 && t >= 3 && t <= 9) {
       const target = sched[t].customers[rand(0, 1)];
       if (target.patience > 4) {
         target.patience = 4;
@@ -341,7 +436,90 @@ function buildSchedule() {
     }
   }
 
+  // --- Step 8: Tail-fill — ensure optimal play has work on every tick including 15-16 ---
+  // Simulate optimal play and find idle ticks; inject customers to fill them
+  const idleTicks = findIdleTicks(sched);
+  if (idleTicks.length > 0) {
+    for (const idleTick of idleTicks) {
+      if (idleTick < 12) continue; // only fill tail idle ticks (13-16, index 12-15)
+      // Inject a customer 2-3 ticks before the idle tick so they're waiting
+      const injectTick = Math.max(0, idleTick - rand(2, 3));
+      const c = createCustomer(menuDishes);
+      if (!c) continue;
+      // Force 1T dish for tail customers (so they can be served in 1 tick)
+      if (G.mode !== 'omakase' && c.order) {
+        const dish = getDish(c.order);
+        if (dish.time > 1) {
+          const fast = menuDishes.filter(d => d.time === 1 && !isHardReject(c.tags, d.tags));
+          if (fast.length > 0) c.order = fast[rand(0, fast.length - 1)].id;
+        }
+      }
+      // Set patience so they survive until the idle tick + 1
+      const patienceNeeded = T - (injectTick + 1) + 1; // survive to tick 16
+      c.patience = Math.max(patienceNeeded, 4);
+      c.maxPatience = c.patience;
+      sched[injectTick].customers.push(c);
+    }
+  }
+
+  // --- Step 8b: Ensure the very last customer (served on tick 16) has a 1T dish ---
+  // Find the last customer by patience: the one who would be served last
+  if (G.mode !== 'omakase') {
+    // Collect all customers with their arrival tick
+    const allCusts = [];
+    sched.forEach((td, t) => td.customers.forEach(c => allCusts.push({c, arrivalTick: t})));
+    // Find customers that could still be alive on tick 16 (arrival + patience enough)
+    const tick16Survivors = allCusts.filter(({c, arrivalTick}) => {
+      return (arrivalTick + 1 + c.patience) > T; // patience countdown reaches past tick 16
+    });
+    if (tick16Survivors.length > 0) {
+      // The last survivor should have a 1T dish
+      const last = tick16Survivors[tick16Survivors.length - 1];
+      const dish = getDish(last.c.order);
+      if (dish && dish.time > 1) {
+        const fast = menuDishes.filter(d => d.time === 1 && !isHardReject(last.c.tags, d.tags));
+        if (fast.length > 0) last.c.order = fast[rand(0, fast.length - 1)].id;
+      }
+    }
+  }
+
   return sched;
+}
+
+// Find ticks where optimal play has no customer to serve (idle ticks)
+function findIdleTicks(sched) {
+  const T = sched.length;
+  let queue = [];
+  let cookingTicks = 0;
+  const idle = [];
+  const defaultDishTime = G.mode === 'omakase' ? 1 : null;
+
+  for (let t = 0; t < T; t++) {
+    // Arrivals
+    for (const c of sched[t].customers) {
+      const dishTime = c.order ? getDish(c.order).time : defaultDishTime;
+      queue.push({ patience: c.patience, time: dishTime || 1 });
+    }
+    // Patience decay
+    queue.forEach(q => q.patience--);
+    queue = queue.filter(q => q.patience > 0);
+
+    // Auto-complete multi-tick cooking
+    if (cookingTicks > 0) { cookingTicks--; continue; }
+
+    // Skip event ticks
+    if (sched[t].event) continue;
+
+    // Serve
+    if (queue.length > 0) {
+      queue.sort((a,b) => a.time - b.time || a.patience - b.patience);
+      const chosen = queue.shift();
+      if (chosen.time >= 2) { cookingTicks = chosen.time - 1; }
+    } else {
+      idle.push(t);
+    }
+  }
+  return idle;
 }
 
 // ===== Multi-strategy schedule evaluation =====
@@ -453,7 +631,7 @@ function placeRandomEvents(sched) {
     if (evt.timing === 'tick') {
       // Place at a random tick (prefer mid-range: tick 4-10)
       const candidates = [];
-      for (let t = 3; t <= 9; t++) {
+      for (let t = 3; t <= 12; t++) {
         if (!sched[t].event) candidates.push(t);
       }
       if (candidates.length === 0) {
@@ -555,12 +733,10 @@ function selectPack(packId) {
   G.cash -= pack.cost;
   G.inventory = {};
   for (const [k,v] of Object.entries(pack.items)) {
-    // Buyer assistant gives +20% ingredients
-    G.inventory[k] = G.assistant === 'buyer' ? Math.ceil(v * 1.2) : v;
+    G.inventory[k] = v;
   }
   G.semi = {'高汤':0,'红烧酱':0,'辣酱':0,'米饭':0};
   addLog(`📦 选择了 ${pack.name}（花费 ${pack.cost}）`);
-  if (G.assistant === 'buyer') addLog('📦 采购助手加成：所有食材 +20%');
   renderPlanning();
   renderStats();
 }
@@ -573,15 +749,7 @@ function toggleMenuDish(dishId) {
 }
 
 function setAssistant(type) {
-  const oldAsst = G.assistant;
   G.assistant = type;
-  // Re-apply buyer bonus if pack already selected
-  if (G.todayPack && (oldAsst === 'buyer' || type === 'buyer')) {
-    G.inventory = {};
-    for (const [k,v] of Object.entries(G.todayPack.items)) {
-      G.inventory[k] = G.assistant === 'buyer' ? Math.ceil(v * 1.2) : v;
-    }
-  }
   renderPlanning();
 }
 
@@ -654,7 +822,7 @@ function nextTick() {
   }
 
   const td = G.schedule[G.tick - 1];
-  addLog(`\n--- Tick ${G.tick}/12 ---`);
+  addLog(`\n--- Tick ${G.tick}/${CONFIG.TICKS_PER_DAY} ---`);
 
   // 1. Arrivals
   for (const c of td.customers) {
@@ -674,8 +842,8 @@ function nextTick() {
   // 3. Leave check
   const leaving = G.queue.filter(c => c.patience <= 0);
   for (const c of leaving) {
-    const isPicky = c.tags.includes('挑剔') || c.tags.includes('VIP');
-    const pen = isPicky ? CONFIG.LEAVE_REP_PICKY : CONFIG.LEAVE_REP;
+    const isVIPLeave = c.tags.includes('VIP');
+    const pen = isVIPLeave ? CONFIG.LEAVE_REP_PICKY : CONFIG.LEAVE_REP;
     G.rep = clamp(G.rep + pen, 0, 100);
     G.stats.repChange += pen;
     G.stats.left++;
@@ -858,14 +1026,31 @@ function settleCook(customer, dish, semiChoice, isSub, cashBonus, repBonus, cost
   // Remove from queue
   G.queue = G.queue.filter(c => c.id !== customer.id);
 
-  // Cash (VIP doubles revenue)
-  let revenue = dish.price - dish.cost - costExtra + cashBonus;
   const isVIP = customer.tags.includes('VIP');
+  const isPicky = customer.tags.includes('挑剔');
+  const isFoodie = customer.tags.includes('美食家');
+  const matchCount = countTagMatches(customer.tags, dish.tags);
+
+  // --- Cash ---
+  let revenue = dish.price - dish.cost - costExtra + cashBonus;
+  // A pack rhythm bonus: 1T base-time dishes get +2 cash
+  if (G.todayPack && G.todayPack.rhythmBonus && dish.time === 1) {
+    revenue += 2;
+  }
+  // C pack spirit cash bonus: spirit dishes get +3 cash when rep >= 60
+  if (dish.isSpirit && G.todayPack && G.todayPack.spiritBonus && G.rep >= 60) {
+    revenue += 3;
+  }
   if (isVIP) revenue *= 2;
+
+  // --- Tip (System 1 + 6) ---
+  const tip = calculateTip(customer, dish, isSub, matchCount);
+  revenue += tip;
+
   G.cash += revenue;
   G.stats.revenue += revenue;
 
-  // Reputation
+  // --- Reputation ---
   let rep = dish.baseRep;
   // C pack spirit bonus
   if (dish.isSpirit && G.todayPack && G.todayPack.spiritBonus) rep++;
@@ -877,16 +1062,18 @@ function settleCook(customer, dish, semiChoice, isSub, cashBonus, repBonus, cost
   if (customer.patience <= 1) rep += CONFIG.WAIT_PENALTY;
   // Substitute penalty
   if (isSub) rep += CONFIG.SUB_PENALTY;
-  // Tag match
-  let matched = hasTagMatch(customer.tags, dish.tags);
-  if (matched) rep += CONFIG.TAG_MATCH_REP;
+  // Tag match rewards (System 6) — capped at +1
+  if (matchCount >= 1) rep += 1;
   // VIP base rep +1
   if (isVIP) rep++;
   // VIP extra bonus for D09
   if (isVIP && dish.special === 'vipBonus') rep++;
-  // Lobby assistant: +1 rep when rep is positive
-  if (G.assistant === 'lobby' && rep > 0) {
-    rep++;
+  // 挑剔: no tag match → -1 rep
+  if (isPicky && matchCount === 0) rep += CONFIG.PICKY_MISMATCH_REP;
+  // 美食家: dish quality check
+  if (isFoodie) {
+    if (dish.baseRep >= 2) rep += CONFIG.FOODIE_HIGH_REP;
+    else if (dish.baseRep <= 0) rep += CONFIG.FOODIE_LOW_REP;
   }
 
   G.rep = clamp(G.rep + rep, 0, 100);
@@ -919,8 +1106,14 @@ function settleCook(customer, dish, semiChoice, isSub, cashBonus, repBonus, cost
   if (isSub) msg += '（替代料）';
   if (semiChoice) msg += `（${semiChoice.type}）`;
   msg += ` | 现金+${revenue}`;
+  if (tip > 0) msg += `（含小费${tip}）`;
   msg += ` 口碑${rep>=0?'+':''}${rep}`;
-  if (matched) msg += '（标签命中✓）';
+  if (matchCount > 0) msg += `（标签命中×${matchCount}✓）`;
+  if (isPicky && matchCount === 0) msg += '（挑剔·不满意）';
+  if (isFoodie) {
+    if (dish.baseRep >= 3) msg += '（美食家·赞赏）';
+    else if (dish.baseRep <= 1) msg += '（美食家·失望）';
+  }
   addLog(msg);
 
   G.mainDone = true;
@@ -1000,9 +1193,10 @@ function asstSoothe() {
 }
 
 function doAsstSoothe(customer) {
-  customer.patience += CONFIG.LIGHT_SOOTHE;
+  const sootheAmt = G.assistant === 'lobby' ? CONFIG.LIGHT_SOOTHE * 2 : CONFIG.LIGHT_SOOTHE;
+  customer.patience += sootheAmt;
   G.asstDone = true;
-  addLog(`👨‍🍳助手安抚 ${customer.name}：耐心 +${CONFIG.LIGHT_SOOTHE}`);
+  addLog(`👨‍🍳助手安抚 ${customer.name}：耐心 +${sootheAmt}`);
   UI.mode = null;
   endTickHygiene();
 }
@@ -1124,26 +1318,30 @@ function resolveEvent(choice) {
       // Player can still cook this tick
     }
   } else if (evt.type === 'INSPECTION') {
-    if (choice === 'A') {
-      G.skipTicks = 3;
+    if (choice === 'PASS') {
+      G.rep = clamp(G.rep + 2, 0, 100);
+      G.stats.repChange += 2;
+      addLog('🏛️ 食安抽检！卫生达标，顺利通过检查。口碑+2');
+    } else if (choice === 'A') {
+      G.skipTicks = 2;
       G.hygiene = clamp(G.hygiene + 15, 0, 100);
       G.rep = clamp(G.rep - 1, 0, 100);
       G.stats.hygChange += 15;
       G.stats.repChange -= 1;
       G.mainDone = true;
-      addLog('🏛️ 食安抽检！停业整改：跳过3个Tick，卫生+15，口碑-1');
+      addLog('🏛️ 食安抽检！停业整改：跳过2个Tick，卫生+15，口碑-1');
     } else if (choice === 'B') {
-      G.cash -= 200;
-      G.mainDone = false; // player can still act
-      addLog('🏛️ 食安抽检！交罚款：现金-200');
+      G.cash -= 80;
+      G.mainDone = false;
+      addLog('🏛️ 食安抽检！交罚款：现金-80');
     } else {
-      G.cash -= 120;
+      G.cash -= 60;
       if (G.hygiene < 50) {
-        G.rep = clamp(G.rep - 5, 0, 100);
-        G.stats.repChange -= 5;
-        addLog('🏛️ 食安抽检！行贿：现金-120，卫生不达标被传出去 口碑-5');
+        G.rep = clamp(G.rep - 3, 0, 100);
+        G.stats.repChange -= 3;
+        addLog('🏛️ 食安抽检！行贿：现金-60，卫生不达标被传出去 口碑-3');
       } else {
-        addLog('🏛️ 食安抽检！行贿：现金-120');
+        addLog('🏛️ 食安抽检！行贿：现金-60');
       }
     }
   } else if (evt.type === 'SHORTAGE') {
@@ -1172,6 +1370,7 @@ function resolveEvent(choice) {
   } else if (evt.type === 'INSPECTION' && choice === 'A') {
     afterMainAction();
   } else if (evt.type === 'INSPECTION' && choice === 'PASS') {
+    // PASS: no action cost, keep going
     renderRush(); renderStats();
   } else {
     renderRush(); renderStats();
@@ -1251,7 +1450,7 @@ function showScreen(name) {
 function renderStats() {
   if (!G) return;
   $('#stat-day').textContent = `Day ${G.day}`;
-  $('#stat-tick').textContent = G.phase === 'RUSH' ? `Tick ${G.tick}/12` : '';
+  $('#stat-tick').textContent = G.phase === 'RUSH' ? `Tick ${G.tick}/${CONFIG.TICKS_PER_DAY}` : '';
   $('#stat-cash').innerHTML = `💰 ${G.cash}`;
   $('#stat-rep').innerHTML = `⭐ ${G.rep}`;
   $('#stat-hyg').innerHTML = `🧹 ${G.hygiene}`;
@@ -1278,7 +1477,8 @@ function renderPlanning() {
       <div class="pack-name">${p.name}</div>
       <div class="pack-cost">💰 ${p.cost}</div>
       <div class="pack-desc">${p.desc}</div>
-      ${p.spiritBonus?'<div class="pack-bonus">✨ 灵材菜口碑+1</div>':''}
+      ${p.rhythmBonus?'<div class="pack-bonus">🎵 1T菜每份+2现金</div>':''}
+      ${p.spiritBonus?'<div class="pack-bonus">✨ 灵材菜口碑+1 | rep≥60时+3现金</div>':''}
     </div>`;
   }
   html += `</div></div>`;
@@ -1452,7 +1652,7 @@ function renderActions() {
     const isEnd = G.tick >= CONFIG.TICKS_PER_DAY;
     html = `<div class="action-center">
       <button class="btn-action btn-next" onclick="${isEnd?'endDay()':'nextTick()'}">
-        ${G.tick===0?'▶ 开始 Tick 1':isEnd?'📊 打烊结算':`▶ 下一个 Tick (${G.tick+1}/12)`}
+        ${G.tick===0?'▶ 开始 Tick 1':isEnd?'📊 打烊结算':`▶ 下一个 Tick (${G.tick+1}/${CONFIG.TICKS_PER_DAY})`}
       </button>
     </div>`;
     el.innerHTML = html;
@@ -1582,12 +1782,12 @@ function renderActions() {
       }
       html += `<button class="btn-action btn-cancel" onclick="UI.mode='ASSISTANT';renderRush()">取消</button>`;
     } else {
-      html += `<button class="btn-action" onclick="asstSoothe()" ${G.queue.length===0?'disabled':''}>轻安抚(+${CONFIG.LIGHT_SOOTHE})</button>`;
+      const sootheLabel = G.assistant === 'lobby' ? CONFIG.LIGHT_SOOTHE * 2 : CONFIG.LIGHT_SOOTHE;
+      html += `<button class="btn-action" onclick="asstSoothe()" ${G.queue.length===0?'disabled':''}>轻安抚(+${sootheLabel})</button>`;
+      html += `<button class="btn-action" onclick="asstClean()">轻清洁(+${CONFIG.LIGHT_CLEAN})</button>`;
       if (G.assistant === 'buyer') {
         const canRestock = G.restockCount < BUYER_RESTOCK_MAX && G.cash >= BUYER_RESTOCK_COST;
         html += `<button class="btn-action" onclick="asstRestock()" ${canRestock?'':'disabled'}>📦补货(${BUYER_RESTOCK_MAX - G.restockCount}次)</button>`;
-      } else {
-        html += `<button class="btn-action" onclick="asstClean()">轻清洁(+${CONFIG.LIGHT_CLEAN})</button>`;
       }
       html += `<button class="btn-action btn-cancel" onclick="asstSkip()">跳过</button>`;
     }
