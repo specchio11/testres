@@ -9,40 +9,16 @@ var NPC_MAX_RANDOM = 30;
 
 // ===================== 性别 =====================
 var NPC_GENDER_POOL = Object.freeze([
-  { id: 'male', name: '男', weight: 50 },
-  { id: 'female', name: '女', weight: 50 },
+  { id: 'male', name: '男', weight: 1 },
+  { id: 'female', name: '女', weight: 1 },
 ]);
 
 // ===================== 种族 =====================
 var NPC_RACE_POOL = Object.freeze([
-  {
-    id: 'xian',
-    name: '仙',
-    weight: 25,
-    desc: '仙道修士，崇尚秩序与积累，善于经营建设',
-    skillAffinity: '建筑、经济类技能',
-  },
-  {
-    id: 'ren',
-    name: '人',
-    weight: 25,
-    desc: '人族修士，机敏善变，长于算计与交易',
-    skillAffinity: '概率、经济类技能',
-  },
-  {
-    id: 'yao',
-    name: '妖',
-    weight: 25,
-    desc: '妖族修士，天赋异禀，擅长道具与行动',
-    skillAffinity: '卡片、行动类技能',
-  },
-  {
-    id: 'mo',
-    name: '魔',
-    weight: 25,
-    desc: '魔道修士，好勇斗狠，精于攻伐与行动',
-    skillAffinity: '攻击、行动类技能',
-  },
+  { id: 'xian', name: '仙', weight: 1 },
+  { id: 'ren', name: '人', weight: 1 },
+  { id: 'yao', name: '妖', weight: 1 },
+  { id: 'mo', name: '魔', weight: 1 },
 ]);
 
 // --- 种族 AI 基础权重 (覆盖默认值3的维度) ---
@@ -56,78 +32,28 @@ var NPC_RACE_AI_BASE = Object.freeze({
 // --- 种族 → 技能前缀亲和度权重 ---
 var NPC_RACE_SKILL_AFFINITY = Object.freeze({
   xian: { fengshan: 50, dingfen: 20, chuanfei: 15, wanshu: 10, guidao: 5 },
-  ren: { dingfen: 40, fengshan: 30, wanshu: 15, chuanfei: 10, guidao: 5 },
-  yao: { wanshu: 35, chuanfei: 30, guidao: 15, dingfen: 15, fengshan: 5 },
-  mo: { chuanfei: 40, guidao: 20, wanshu: 20, dingfen: 10, fengshan: 10 },
+  ren:  { dingfen: 40, fengshan: 30, wanshu: 15, chuanfei: 10, guidao: 5 },
+  yao:  { wanshu: 35, chuanfei: 30, guidao: 15, dingfen: 15, fengshan: 5 },
+  mo:   { chuanfei: 40, guidao: 20, wanshu: 20, dingfen: 10, fengshan: 10 },
 });
 
 // ===================== 性格 (10种独立性格) =====================
 var NPC_PERSONALITY_POOL = Object.freeze([
   // ── 克己持重 / 清冷孤高 ──
-  {
-    id: 'keji',
-    name: '克己持重',
-    weight: 10,
-    desc: '律己极严，风险厌恶，重视资源储备与防守建设',
-  },
-  {
-    id: 'qingleng',
-    name: '清冷孤高',
-    weight: 10,
-    desc: '离群索居，不贪蝇利，不屑交易，独善其身',
-  },
+  { id: 'keji', name: '克己持重', weight: 1 },
+  { id: 'qingleng', name: '清冷孤高', weight: 1 },
   // ── 城府深阻 / 循规蹈矩 ──
-  {
-    id: 'chengfu',
-    name: '城府深阻',
-    weight: 10,
-    desc: '深谋远虑，行事隐忍，谋定后动，伺机而发',
-  },
-  {
-    id: 'xungui',
-    name: '循规蹈矩',
-    weight: 10,
-    desc: '按部就班，不走极端，稳扎稳打，中庸之道',
-  },
+  { id: 'chengfu', name: '城府深阻', weight: 1 },
+  { id: 'xungui', name: '循规蹈矩', weight: 1 },
   // ── 磊落豪朗 / 风流倜傥 ──
-  {
-    id: 'leiluo',
-    name: '磊落豪朗',
-    weight: 10,
-    desc: '慷慨大方，轻财重义，好行侠义，不计得失',
-  },
-  {
-    id: 'fengliu',
-    name: '风流倜傥',
-    weight: 10,
-    desc: '处事潇洒，偏好冒险，好胜争先，不畏风险',
-  },
+  { id: 'leiluo', name: '磊落豪朗', weight: 1 },
+  { id: 'fengliu', name: '风流倜傥', weight: 1 },
   // ── 幸灾乐祸 / 桀骜不驯 ──
-  {
-    id: 'xingzai',
-    name: '幸灾乐祸',
-    weight: 10,
-    desc: '损人利己，嗜用道具，沉迷于破坏他人计划',
-  },
-  {
-    id: 'jieao',
-    name: '桀骜不驯',
-    weight: 10,
-    desc: '好勇斗狠，攻击欲极强，蔑视一切规则',
-  },
+  { id: 'xingzai', name: '幸灾乐祸', weight: 1 },
+  { id: 'jieao', name: '桀骜不驯', weight: 1 },
   // ── 烂漫随性 / 逍遥任游 ──
-  {
-    id: 'lanman',
-    name: '烂漫随性',
-    weight: 10,
-    desc: '行事无常，随心所欲，不可预测',
-  },
-  {
-    id: 'xiaoyao',
-    name: '逍遥任游',
-    weight: 10,
-    desc: '闲云野鹤，偏好特种行动，追求意外之喜',
-  },
+  { id: 'lanman', name: '烂漫随性', weight: 1 },
+  { id: 'xiaoyao', name: '逍遥任游', weight: 1 },
 ]);
 
 // --- 性格 AI 权重修正 (覆盖种族+默认, 优先级最高) ---
@@ -334,14 +260,14 @@ var NPC_LURE_TYPES = Object.freeze({
   sword: {
     name: '垂类·剑谱',
     desc: '偏向仙/妖种族，侧重行动类技能',
-    raceBonus: { xian: 40, yao: 25, ren: -10, mo: -10 },
-    skillBonus: { chuanfei: 60 },
+    raceBonus: { xian: 3, yao: 2 },
+    skillBonus: { chuanfei: 4 },
   },
   alchemy: {
     name: '垂类·丹方',
     desc: '偏向人/仙种族，侧重概率/经济类技能',
-    raceBonus: { ren: 40, xian: 25, yao: -10, mo: -10 },
-    skillBonus: { dingfen: 50, fengshan: 40 },
+    raceBonus: { ren: 3, xian: 2 },
+    skillBonus: { dingfen: 4, fengshan: 3 },
   },
 });
 

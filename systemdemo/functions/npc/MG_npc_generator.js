@@ -69,8 +69,8 @@ function MG_generateRandomNpc(options, existingNpcs) {
     var name = MG_generateNpcName(gender.id, existing);
     log.push('[姓名] 生成: ' + name);
 
-    // 6. 分配立绘
-    var portrait = MG_assignPortrait(gender.id);
+    // 6. 分配立绘（种族亲和度 + 去重衰减）
+    var portrait = MG_assignPortrait(gender.id, race.id, existing);
     log.push('[立绘] 分配: ' + portrait);
 
     // 7. 计算AI权重
@@ -122,11 +122,45 @@ function MG_generateNpcName(genderId, existingNpcs) {
 }
 
 /**
- * 随机分配立绘ID
+ * 加权随机分配立绘ID
+ * 权重 = 种族亲和度 × 去重衰减
+ * @param {string} genderId - 'male' | 'female'
+ * @param {string} raceId - 种族ID
+ * @param {Array} existingNpcs - 已有NPC列表（用于计算去重衰减）
  */
-function MG_assignPortrait(genderId) {
+function MG_assignPortrait(genderId, raceId, existingNpcs) {
     var portraits = genderId === 'male' ? NPC_PORTRAIT_MALE : NPC_PORTRAIT_FEMALE;
-    return portraits[Math.floor(Math.random() * portraits.length)].id;
+    var existing = existingNpcs || [];
+
+    // 统计已有NPC中各立绘的使用次数
+    var usedCount = {};
+    for (var i = 0; i < existing.length; i++) {
+        var pid = existing[i].portrait_id;
+        usedCount[pid] = (usedCount[pid] || 0) + 1;
+    }
+
+    // 构建加权池: 基础权重 = raceAffinity[种族], 每被使用一次权重变为原来的40%
+    var REPEAT_DECAY = 0.4;
+    var pool = [];
+    for (var j = 0; j < portraits.length; j++) {
+        var p = portraits[j];
+        var baseW = (p.raceAffinity && p.raceAffinity[raceId] !== undefined)
+            ? p.raceAffinity[raceId] : 5;
+        if (baseW <= 0) continue; // 权重0表示该种族不可用
+
+        var used = usedCount[p.id] || 0;
+        var finalW = baseW * Math.pow(REPEAT_DECAY, used);
+        if (finalW < 0.1) finalW = 0.1; // 保底，不完全排除
+        pool.push({ id: p.id, weight: finalW });
+    }
+
+    // 如果池子空了（理论上不会），回退等权
+    if (pool.length === 0) {
+        return portraits[Math.floor(Math.random() * portraits.length)].id;
+    }
+
+    var selected = UTIL_weightedRandom(pool);
+    return selected.id;
 }
 
 /**
