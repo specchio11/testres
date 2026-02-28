@@ -29,7 +29,7 @@
     --shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
-html { font-size: 14px; }
+html { font-size: 20px; }
 html, body { height: 100vh; overflow: hidden; }
 body {
     font-family: var(--font-main);
@@ -65,7 +65,7 @@ a:hover { text-decoration: underline; }
 }
 .home-platform-info {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: 1rem;
 }
 .home-grid {
     display: grid;
@@ -78,7 +78,7 @@ a:hover { text-decoration: underline; }
     padding-top: 20px;
     border-top: 1px solid var(--border-color);
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: 1rem;
 }
 .arch-tag {
     display: inline-block;
@@ -87,7 +87,7 @@ a:hover { text-decoration: underline; }
     color: var(--accent-gold);
     padding: 1px 6px;
     border-radius: 3px;
-    font-size: 0.8rem;
+    font-size: 1rem;
 }
 .arch-sep {
     margin: 0 8px;
@@ -137,19 +137,19 @@ a:hover { text-decoration: underline; }
 }
 .demo-card__desc {
     color: var(--text-secondary);
-    font-size: 0.9rem;
+    font-size: 1rem;
     margin-bottom: 8px;
 }
 .demo-card__tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .demo-tag {
-    font-size: 0.75rem;
+    font-size: 1rem;
     padding: 2px 8px;
     background: rgba(95,168,211,0.15);
     color: var(--accent-blue);
     border-radius: 3px;
 }
 .demo-card__status {
-    font-size: 0.8rem;
+    font-size: 1rem;
     color: var(--accent-green);
     white-space: nowrap;
     flex-shrink: 0;
@@ -199,7 +199,7 @@ a:hover { text-decoration: underline; }
     color: var(--text-primary);
     border-radius: var(--radius-sm);
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: 1rem;
     font-family: var(--font-main);
     transition: all 0.15s;
 }

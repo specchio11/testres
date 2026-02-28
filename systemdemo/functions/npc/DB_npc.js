@@ -32,9 +32,9 @@ var NPC_RACE_AI_BASE = Object.freeze({
 // --- 种族 → 技能前缀亲和度权重 ---
 var NPC_RACE_SKILL_AFFINITY = Object.freeze({
   xian: { fengshan: 50, dingfen: 20, chuanfei: 15, wanshu: 10, guidao: 5 },
-  ren:  { dingfen: 40, fengshan: 30, wanshu: 15, chuanfei: 10, guidao: 5 },
-  yao:  { wanshu: 35, chuanfei: 30, guidao: 15, dingfen: 15, fengshan: 5 },
-  mo:   { chuanfei: 40, guidao: 20, wanshu: 20, dingfen: 10, fengshan: 10 },
+  ren: { dingfen: 40, fengshan: 30, wanshu: 15, chuanfei: 10, guidao: 5 },
+  yao: { wanshu: 35, chuanfei: 30, guidao: 15, dingfen: 15, fengshan: 5 },
+  mo: { chuanfei: 40, guidao: 20, wanshu: 20, dingfen: 10, fengshan: 10 },
 });
 
 // ===================== 性格 (10种独立性格) =====================
@@ -100,8 +100,11 @@ var NPC_AI_LEVEL_TEXT = Object.freeze({
 });
 
 // ===================== 技能系统 =====================
+// NPC只存 skill_id (即前缀key，如 "wanshu")
+// 所有技能效果运行时从 NPC_GAME_SKILLS 按游戏类型查表获取
+// 结构: NPC_GAME_SKILLS[skill_id][gameType] = { name, desc, effect }
 
-// --- 技能前缀定义 ---
+// --- 技能前缀定义（跨游戏通用元数据）---
 var NPC_SKILL_PREFIX = Object.freeze({
   fengshan: { name: '丰赡', desc: '数值类（经济、建筑）', color: '#c9a96e' },
   chuanfei: { name: '遄飞', desc: '行动类（行动、攻击）', color: '#e94560' },
@@ -110,163 +113,131 @@ var NPC_SKILL_PREFIX = Object.freeze({
   guidao: { name: '诡道', desc: '特种类', color: '#9b59b6' },
 });
 
-// --- 技能池 (21个技能) ---
-var NPC_SKILL_POOL = Object.freeze([
+// --- 技能总表 (skill_id → 各游戏技能) ---
+// key1 = skill_id (随机NPC = 前缀key; 固定NPC = 专属key)
+// key2 = gameType ('monopoly', 'quiz', ...)
+// 每条: { name: '前缀·后缀', desc: '描述', effect: { ... } }
+var NPC_GAME_SKILLS = Object.freeze({
   // ═══ 丰赡 · 数值/经济/建筑 ═══
-  {
-    id: 'fengshan_01',
-    prefix: 'fengshan',
-    name: '丰赡·来者不拒',
-    desc: '过路费减免10%，广结善缘',
+  fengshan: {
+    monopoly: {
+      name: '丰赡·聚宝生辉',
+      desc: '经过起点时额外获得15%灵石',
+      effect: { type: 'income_pct', value: 0.15 },
+    },
+    quiz: {
+      name: '丰赡·博闻强识',
+      desc: '答对题目时奖励灵石翻倍',
+      effect: { type: 'reward_double' },
+    },
   },
-  {
-    id: 'fengshan_02',
-    prefix: 'fengshan',
-    name: '丰赡·聚宝生辉',
-    desc: '经过起点时额外获得15%灵石',
-  },
-  {
-    id: 'fengshan_03',
-    prefix: 'fengshan',
-    name: '丰赡·固若金汤',
-    desc: '己方建筑升级费用减少20%',
-  },
-  {
-    id: 'fengshan_04',
-    prefix: 'fengshan',
-    name: '丰赡·日进斗金',
-    desc: '己方所有建筑收租金额+10%',
-  },
-  {
-    id: 'fengshan_05',
-    prefix: 'fengshan',
-    name: '丰赡·点石成金',
-    desc: '购买空地时价格减少15%',
-  },
-
   // ═══ 遄飞 · 行动/攻击 ═══
-  {
-    id: 'chuanfei_01',
-    prefix: 'chuanfei',
-    name: '遄飞·神行百变',
-    desc: '每回合可选择额外前进或后退1步',
+  chuanfei: {
+    monopoly: {
+      name: '遄飞·神行百变',
+      desc: '每回合可选择额外前进或后退1步',
+      effect: { type: 'move_choice', value: 1 },
+    },
+    quiz: {
+      name: '遄飞·先声夺人',
+      desc: '抢答阶段获得0.5秒提前作答时间',
+      effect: { type: 'time_bonus', value: 0.5 },
+    },
   },
-  {
-    id: 'chuanfei_02',
-    prefix: 'chuanfei',
-    name: '遄飞·凌波微步',
-    desc: '经过对手地产时20%概率免交过路费',
-  },
-  {
-    id: 'chuanfei_03',
-    prefix: 'chuanfei',
-    name: '遄飞·雷霆一击',
-    desc: '路过对手建筑时10%概率使其降级',
-  },
-  {
-    id: 'chuanfei_04',
-    prefix: 'chuanfei',
-    name: '遄飞·风驰电掣',
-    desc: '移动时无视路障与陷阱效果',
-  },
-
   // ═══ 定分 · 概率 ═══
-  {
-    id: 'dingfen_01',
-    prefix: 'dingfen',
-    name: '定分·天命所归',
-    desc: '天机阁签文抽到上上签概率+10%',
+  dingfen: {
+    monopoly: {
+      name: '定分·否极泰来',
+      desc: '连续2回合不获利时，下回合收益翻倍',
+      effect: { type: 'comeback', rounds: 2, multiplier: 2 },
+    },
+    quiz: {
+      name: '定分·天命所归',
+      desc: '答错时30%概率获得再答一次机会',
+      effect: { type: 'retry_chance', value: 0.3 },
+    },
   },
-  {
-    id: 'dingfen_02',
-    prefix: 'dingfen',
-    name: '定分·否极泰来',
-    desc: '连续2回合不获利时，下回合收益翻倍',
-  },
-  {
-    id: 'dingfen_03',
-    prefix: 'dingfen',
-    name: '定分·逢凶化吉',
-    desc: '下下签负面效果减半',
-  },
-  {
-    id: 'dingfen_04',
-    prefix: 'dingfen',
-    name: '定分·妙手偶得',
-    desc: '秘境检定成功率+15%',
-  },
-
   // ═══ 万殊 · 道具/卡片 ═══
-  {
-    id: 'wanshu_01',
-    prefix: 'wanshu',
-    name: '万殊·百宝囊中',
-    desc: '每5回合自动获得1张随机T1符箓',
+  wanshu: {
+    monopoly: {
+      name: '万殊·百宝囊中',
+      desc: '每5回合自动获得1张随机T1符箓',
+      effect: { type: 'auto_item', interval: 5, tier: 1 },
+    },
+    quiz: {
+      name: '万殊·锦囊妙计',
+      desc: '每局可使用1次提示道具（排除1个错误选项）',
+      effect: { type: 'hint', uses: 1 },
+    },
   },
-  {
-    id: 'wanshu_02',
-    prefix: 'wanshu',
-    name: '万殊·移花接木',
-    desc: '使用道具卡时20%概率不消耗',
-  },
-  {
-    id: 'wanshu_03',
-    prefix: 'wanshu',
-    name: '万殊·夺人之器',
-    desc: '对手使用道具卡时15%概率夺取',
-  },
-  {
-    id: 'wanshu_04',
-    prefix: 'wanshu',
-    name: '万殊·藏器待时',
-    desc: '手牌上限+1',
-  },
-
   // ═══ 诡道 · 特种 ═══
-  {
-    id: 'guidao_01',
-    prefix: 'guidao',
-    name: '诡道·暗渡陈仓',
-    desc: '回合结束时15%概率与随机对手交换位置',
+  guidao: {
+    monopoly: {
+      name: '诡道·暗渡陈仓',
+      desc: '回合结束时15%概率与随机对手交换位置',
+      effect: { type: 'swap_pos', chance: 0.15 },
+    },
+    quiz: {
+      name: '诡道·移花接木',
+      desc: '可将1道已答对的题目替换对手的正确答案',
+      effect: { type: 'steal_answer', uses: 1 },
+    },
   },
-  {
-    id: 'guidao_02',
-    prefix: 'guidao',
-    name: '诡道·浑水摸鱼',
-    desc: '世界事件触发时额外获得奖励',
-  },
-  {
-    id: 'guidao_03',
-    prefix: 'guidao',
-    name: '诡道·李代桃僵',
-    desc: '被罚款时20%概率转嫁给随机对手',
-  },
-  {
-    id: 'guidao_04',
-    prefix: 'guidao',
-    name: '诡道·无中生有',
-    desc: '每局游戏开始时随机获得1个额外buff',
-  },
-]);
+  // ═══ 固定NPC专属技能示例（未来扩展）═══
+  // guigu_zongheng: {
+  //   monopoly: { name: '鬼谷·纵横', desc: '...', effect: {...} },
+  //   quiz:     { name: '鬼谷·辩论', desc: '...', effect: {...} },
+  // },
+});
+
+// --- 已注册的游戏类型（用于UI遍历）---
+var NPC_GAME_TYPES = Object.freeze({
+  monopoly: { name: '大富翁', icon: '🎲' },
+  quiz: { name: '答题', icon: '📝' },
+});
+
+/**
+ * 查询NPC在指定游戏中的技能
+ * @param {Object} npc - NPC对象（需有 skill_id 字段）
+ * @param {string} gameType - 游戏类型key
+ * @returns {Object|null} { name, desc, effect }
+ */
+function getSkillForGame(npc, gameType) {
+  var entry = NPC_GAME_SKILLS[npc.skill_id];
+  if (!entry) return null;
+  return entry[gameType] || null;
+}
 
 // ===================== 诱饵系统 =====================
+// 每种诱饵可对四个池子施加权重加成:
+//   genderBonus       → 性别池
+//   raceBonus         → 种族池
+//   personalityBonus  → 性格池
+//   skillBonus        → 技能前缀池
+// 空对象 {} 表示无加成。
 var NPC_LURE_TYPES = Object.freeze({
   general: {
     name: '泛用·灵茶',
     desc: '不偏不倚，来者皆可',
+    genderBonus: {},
     raceBonus: {},
+    personalityBonus: {},
     skillBonus: {},
   },
   sword: {
     name: '垂类·剑谱',
     desc: '偏向仙/妖种族，侧重行动类技能',
+    genderBonus: {},
     raceBonus: { xian: 3, yao: 2 },
+    personalityBonus: {},
     skillBonus: { chuanfei: 4 },
   },
   alchemy: {
     name: '垂类·丹方',
     desc: '偏向人/仙种族，侧重概率/经济类技能',
+    genderBonus: {},
     raceBonus: { ren: 3, xian: 2 },
+    personalityBonus: {},
     skillBonus: { dingfen: 4, fengshan: 3 },
   },
 });

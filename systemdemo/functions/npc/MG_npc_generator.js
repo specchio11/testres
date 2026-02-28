@@ -17,22 +17,23 @@ function MG_generateRandomNpc(options, existingNpcs) {
     var lure = NPC_LURE_TYPES[lureType];
     log.push('[诱饵] 使用: ' + lure.name + ' — ' + lure.desc);
 
-    // 1. 抽取性别
-    var gender = UTIL_weightedRandom(NPC_GENDER_POOL);
+    // 1. 抽取性别（含诱饵加权）
+    var genderPool = UTIL_applyBonus(NPC_GENDER_POOL, lure.genderBonus);
+    var gender = UTIL_weightedRandom(genderPool);
     log.push('[性别] ' + (gender.id === 'male' ? '男' : '女'));
 
     // 2. 抽取种族（含诱饵加权）
     var racePool = UTIL_applyBonus(NPC_RACE_POOL, lure.raceBonus);
     var race = UTIL_weightedRandom(racePool);
-    log.push('[种族] 抽取: ' + race.name + ' (' + race.desc + ')');
+    log.push('[种族] 抽取: ' + race.name);
     log.push('  └ 种族池权重: ' + UTIL_poolWeightsStr(racePool));
 
-    // 3. 抽取性格
-    var personality = UTIL_weightedRandom(NPC_PERSONALITY_POOL);
+    // 3. 抽取性格（含诱饵加权）
+    var persPool = UTIL_applyBonus(NPC_PERSONALITY_POOL, lure.personalityBonus);
+    var personality = UTIL_weightedRandom(persPool);
     log.push('[性格] 抽取: ' + personality.name);
-    log.push('  └ ' + personality.desc);
 
-    // 4. 抽取技能 — 先按种族亲和度+诱饵偏好选前缀，再从该前缀中选具体技能
+    // 4. 抽取技能前缀 — 按种族亲和度+诱饵偏好
     var raceAffinity = NPC_RACE_SKILL_AFFINITY[race.id] || {};
     var mergedAffinity = Object.assign({}, raceAffinity);
     var bonusPrefixes = Object.keys(lure.skillBonus);
@@ -50,20 +51,19 @@ function MG_generateRandomNpc(options, existingNpcs) {
              ' (' + NPC_SKILL_PREFIX[selectedPrefix.id].desc + ')');
     log.push('  └ 前缀池权重: ' + UTIL_poolWeightsStr(prefixPool));
 
-    // 从该前缀的技能中选1个（优先去重）
-    var skillsOfPrefix = NPC_SKILL_POOL.filter(function (s) {
-        return s.prefix === selectedPrefix.id;
-    });
-    var existingSkillIds = existing.map(function (n) { return n.skill_id; });
-    var availableSkills = skillsOfPrefix.filter(function (s) {
-        return existingSkillIds.indexOf(s.id) === -1;
-    });
-    if (availableSkills.length === 0) {
-        availableSkills = skillsOfPrefix; // 全重复则不去重
-        log.push('  ⚠ 该前缀下技能已全部被持有，允许重复');
+    // 展示各游戏对应技能名（运行时查表）
+    var skillEntry = NPC_GAME_SKILLS[selectedPrefix.id];
+    if (skillEntry) {
+        var gameKeys = Object.keys(NPC_GAME_TYPES);
+        for (var gi = 0; gi < gameKeys.length; gi++) {
+            var gt = gameKeys[gi];
+            var sk = skillEntry[gt];
+            if (sk) {
+                log.push('  └ ' + NPC_GAME_TYPES[gt].icon + ' ' +
+                         NPC_GAME_TYPES[gt].name + ': ' + sk.name);
+            }
+        }
     }
-    var skill = availableSkills[Math.floor(Math.random() * availableSkills.length)];
-    log.push('[技能] 抽取: ' + skill.name + ' — ' + skill.desc);
 
     // 5. 生成姓名（去重）
     var name = MG_generateNpcName(gender.id, existing);
@@ -73,17 +73,10 @@ function MG_generateRandomNpc(options, existingNpcs) {
     var portrait = MG_assignPortrait(gender.id, race.id, existing);
     log.push('[立绘] 分配: ' + portrait);
 
-    // 7. 计算AI权重
-    var aiWeights = MG_mergeAIWeights(race.id, personality.id);
-    var aiSummary = Object.keys(aiWeights).map(function (k) {
-        return (NPC_AI_DIM[k] ? NPC_AI_DIM[k].name : k) + '=' + NPC_AI_LEVEL_TEXT[aiWeights[k]];
-    }).join(', ');
-    log.push('[AI权重] ' + aiSummary);
-
-    // 8. 生成UUID
+    // 7. 生成UUID
     var id = UTIL_generateUUID();
 
-    // 9. 组装NPC对象
+    // 8. 组装NPC对象（不含AI权重——AI权重在局内根据属性实时计算）
     var npc = {
         id: id,
         type: 'random',
@@ -92,8 +85,7 @@ function MG_generateRandomNpc(options, existingNpcs) {
         portrait_id: portrait,
         race: race.id,
         personality: personality.id,
-        skill_id: skill.id,
-        ai_weights: aiWeights
+        skill_id: selectedPrefix.id
     };
 
     log.push('[完成] ✔ ' + name + ' (' + race.name + '·' + personality.name + ')');

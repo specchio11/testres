@@ -181,11 +181,8 @@ var NPC_APP = (function () {
             stats.personality[npc.personality] = (stats.personality[npc.personality] || 0) + 1;
             stats.portrait[npc.portrait_id] = (stats.portrait[npc.portrait_id] || 0) + 1;
 
-            var skill = _lookupSkill(npc.skill_id);
-            if (skill) {
-                var pfx = skill.prefix;
-                stats.skill_prefix[pfx] = (stats.skill_prefix[pfx] || 0) + 1;
-            }
+            // skill_id 就是前缀key
+            stats.skill_prefix[npc.skill_id] = (stats.skill_prefix[npc.skill_id] || 0) + 1;
         }
 
         // 构建弹窗内容
@@ -333,8 +330,8 @@ var NPC_APP = (function () {
         var portraitPath = MG_getPortraitPath(npc.portrait_id);
         var raceData = _lookupRaceData(npc.race);
         var persData = _lookupPersonality(npc.personality);
-        var skillData = _lookupSkill(npc.skill_id);
-        var prefixData = skillData ? NPC_SKILL_PREFIX[skillData.prefix] : null;
+        var prefixData = NPC_SKILL_PREFIX[npc.skill_id] || null;
+        var skillEntry = NPC_GAME_SKILLS[npc.skill_id] || {};
 
         var html = '';
 
@@ -354,28 +351,42 @@ var NPC_APP = (function () {
             '</div>' +
         '</div>';
 
-        // ── 技能块 ──
-        if (skillData) {
-            var pColor = prefixData ? prefixData.color : '#888';
+        // ── 技能块（遍历所有游戏类型）──
+        if (prefixData) {
+            var pColor = prefixData.color || '#888';
             html += '<div class="npc-skill-block" style="border-left-color:' + pColor + '">' +
-                '<div class="npc-skill-name">' + skillData.name +
+                '<div class="npc-skill-name">' + prefixData.name +
                     '<span class="npc-skill-prefix-tag" style="background:' + pColor + '">' +
-                        (prefixData ? prefixData.desc : '') +
+                        prefixData.desc +
                     '</span>' +
-                '</div>' +
-                '<div class="npc-skill-desc">' + skillData.desc + '</div>' +
-            '</div>';
+                '</div>';
+
+            var gameKeys = Object.keys(NPC_GAME_TYPES);
+            for (var si = 0; si < gameKeys.length; si++) {
+                var gt = gameKeys[si];
+                var gInfo = NPC_GAME_TYPES[gt];
+                var sk = skillEntry[gt];
+                if (sk) {
+                    html += '<div class="npc-skill-game-row">' +
+                        '<span class="npc-skill-game-tag">' + gInfo.icon + ' ' + gInfo.name + '</span>' +
+                        '<span class="npc-skill-game-name">' + sk.name + '</span>' +
+                    '</div>' +
+                    '<div class="npc-skill-desc">' + sk.desc + '</div>';
+                }
+            }
+            html += '</div>';
         }
 
-        // ── AI 行为权重 ──
+        // ── AI 行为权重（实时计算，不存储在NPC数据中）──
+        var aiWeights = MG_mergeAIWeights(npc.race, npc.personality);
         html += '<div class="npc-ai-section">' +
             '<div class="npc-ai-title">⚖ AI 行为权重 ' +
-                '<small>（合并优先级: 性格 > 种族 > 默认）</small></div>';
+                '<small>（实时计算 · 性格 > 种族 > 默认）</small></div>';
 
         for (var i = 0; i < NPC_AI_DIM_KEYS.length; i++) {
             var key = NPC_AI_DIM_KEYS[i];
             var dim = NPC_AI_DIM[key];
-            var val = (npc.ai_weights && npc.ai_weights[key] !== undefined) ? npc.ai_weights[key] : 3;
+            var val = (aiWeights[key] !== undefined) ? aiWeights[key] : 3;
             var pct = (val / 5) * 100;
             var barColor = val <= 2 ? 'var(--accent-blue)' : (val >= 4 ? 'var(--accent-red)' : 'var(--accent-gold)');
             var lvText = NPC_AI_LEVEL_TEXT[val] || '中';
@@ -417,13 +428,33 @@ var NPC_APP = (function () {
             return;
         }
 
-        // 增强展示 — 附加查表后的完整信息
-        var display = Object.assign({}, npc);
-        display.__race_info = _lookupRaceData(npc.race);
-        display.__personality_info = _lookupPersonality(npc.personality);
-        display.__skill_info = _lookupSkill(npc.skill_id);
+        // ── 1. 存储数据（NPC持久化的全部字段）──
+        var storedLines = [
+            '// ═══ 存储数据 (NPC持久化字段，这就是实际保存的全部内容) ═══',
+            '{',
+            '  "id": "' + npc.id + '",',
+            '  "type": "' + npc.type + '",',
+            '  "name": "' + npc.name + '",',
+            '  "gender": "' + npc.gender + '",',
+            '  "portrait_id": "' + npc.portrait_id + '",',
+            '  "race": "' + npc.race + '",',
+            '  "personality": "' + npc.personality + '",',
+            '  "skill_id": "' + npc.skill_id + '"',
+            '}',
+        ].join('\n');
 
-        el.textContent = JSON.stringify(display, null, 2);
+        // ── 2. 运行时数据（查表/计算，不存储）──
+        var runtimeData = {
+            race_info: _lookupRaceData(npc.race),
+            personality_info: _lookupPersonality(npc.personality),
+            skill_prefix: NPC_SKILL_PREFIX[npc.skill_id] || null,
+            skill_by_game: NPC_GAME_SKILLS[npc.skill_id] || null,
+            ai_weights: MG_mergeAIWeights(npc.race, npc.personality),
+        };
+
+        el.textContent = storedLines +
+            '\n\n// ═══ 运行时数据 (实时查表/计算，不存储在NPC数据中) ═══\n' +
+            JSON.stringify(runtimeData, null, 2);
     }
 
     // ═══════════════════════════════════════════
@@ -506,10 +537,8 @@ var NPC_APP = (function () {
     }
 
     function _lookupSkill(skillId) {
-        for (var i = 0; i < NPC_SKILL_POOL.length; i++) {
-            if (NPC_SKILL_POOL[i].id === skillId) return NPC_SKILL_POOL[i];
-        }
-        return null;
+        // 新架构: skill_id 就是前缀key，查NPC_GAME_SKILLS
+        return NPC_GAME_SKILLS[skillId] || null;
     }
 
     // ═══════════════════════════════════════════

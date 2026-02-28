@@ -16,7 +16,7 @@
 }
 .npc-back {
     color: var(--text-secondary);
-    font-size: 0.9rem;
+    font-size: 1rem;
     white-space: nowrap;
 }
 .npc-back:hover { color: var(--accent-gold); text-decoration: none; }
@@ -54,7 +54,7 @@
     border: 1px solid var(--border-light);
     border-radius: var(--radius-sm);
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: 1rem;
     font-family: var(--font-main);
     transition: all 0.15s;
 }
@@ -86,7 +86,7 @@
 
 .control-label {
     color: var(--text-secondary);
-    font-size: 0.9rem;
+    font-size: 1rem;
 }
 .select-lure {
     padding: 6px 12px;
@@ -95,12 +95,12 @@
     border: 1px solid var(--border-light);
     border-radius: var(--radius-sm);
     font-family: var(--font-main);
-    font-size: 0.9rem;
+    font-size: 1rem;
     cursor: pointer;
 }
 .select-lure:focus { outline: 1px solid var(--accent-gold); }
 .lure-desc {
-    font-size: 0.8rem;
+    font-size: 1rem;
     color: var(--text-muted);
     font-style: italic;
 }
@@ -151,7 +151,7 @@
 .panel-title small {
     color: var(--text-muted);
     font-weight: normal;
-    font-size: 0.8rem;
+    font-size: 1rem;
 }
 .npc-list {
     display: grid;
@@ -163,7 +163,7 @@
     text-align: center;
     color: var(--text-muted);
     padding: 48px 0;
-    font-size: 0.95rem;
+    font-size: 1rem;
 }
 
 /* NPC Mini Card */
@@ -199,7 +199,7 @@
     border-color: var(--accent-gold);
 }
 .npc-mini-card__name {
-    font-size: 0.85rem;
+    font-size: 1rem;
     color: var(--text-primary);
     margin-bottom: 2px;
     white-space: nowrap;
@@ -207,7 +207,7 @@
     text-overflow: ellipsis;
 }
 .npc-mini-card__race {
-    font-size: 0.72rem;
+    font-size: 1rem;
     padding: 1px 6px;
     border-radius: 2px;
     display: inline-block;
@@ -257,7 +257,7 @@
     margin-bottom: 4px;
 }
 .npc-detail__id {
-    font-size: 0.72rem;
+    font-size: 1rem;
     color: var(--text-muted);
     font-family: var(--font-mono);
     margin-bottom: 12px;
@@ -269,13 +269,13 @@
     display: flex;
     align-items: baseline;
     margin-bottom: 5px;
-    font-size: 0.9rem;
+    font-size: 1rem;
 }
 .npc-stat-label {
     width: 72px;
     color: var(--text-secondary);
     flex-shrink: 0;
-    font-size: 0.85rem;
+    font-size: 1rem;
 }
 .npc-stat-value {
     color: var(--text-primary);
@@ -285,7 +285,7 @@
 .npc-stat-value.race-yao  { color: #a5d6a7; }
 .npc-stat-value.race-mo   { color: #ef9a9a; }
 .npc-stat-sub {
-    font-size: 0.78rem;
+    font-size: 1rem;
     color: var(--text-muted);
     margin-left: 4px;
 }
@@ -305,7 +305,7 @@
     color: var(--text-primary);
 }
 .npc-skill-desc {
-    font-size: 0.85rem;
+    font-size: 1rem;
     color: var(--text-secondary);
     line-height: 1.5;
 }
@@ -313,11 +313,29 @@
     display: inline-block;
     padding: 1px 8px;
     border-radius: 3px;
-    font-size: 0.72rem;
+    font-size: 1rem;
     margin-left: 8px;
     color: #000;
     font-weight: bold;
     vertical-align: middle;
+}
+.npc-skill-game-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    margin-bottom: 2px;
+}
+.npc-skill-game-tag {
+    font-size: 1rem;
+    color: var(--accent-blue);
+    white-space: nowrap;
+    min-width: 80px;
+}
+.npc-skill-game-name {
+    font-size: 1rem;
+    color: var(--text-primary);
+    font-weight: bold;
 }
 
 /* AI Weights Section */
@@ -325,7 +343,7 @@
     margin-top: 20px;
 }
 .npc-ai-title {
-    font-size: 0.95rem;
+    font-size: 1rem;
     color: var(--accent-gold);
     margin-bottom: 10px;
     padding-bottom: 6px;
@@ -334,12 +352,13 @@
 .npc-ai-title small {
     color: var(--text-muted);
     font-weight: normal;
+    font-size: 1rem;
 }
 .npc-ai-row {
     display: flex;
     align-items: center;
     margin-bottom: 5px;
-    font-size: 0.85rem;
+    font-size: 1rem;
 }
 .npc-ai-icon {
     width: 22px;
@@ -347,10 +366,10 @@
     flex-shrink: 0;
 }
 .npc-ai-label {
-    width: 96px;
+    width: 160px;
     color: var(--text-secondary);
     flex-shrink: 0;
-    font-size: 0.8rem;
+    font-size: 1rem;
 }
 .npc-ai-bar-bg {
     flex: 1;
@@ -366,11 +385,11 @@
     transition: width 0.3s ease;
 }
 .npc-ai-value {
-    width: 32px;
+    width: 48px;
     text-align: right;
     font-family: var(--font-mono);
     color: var(--text-primary);
-    font-size: 0.78rem;
+    font-size: 1rem;
     flex-shrink: 0;
 }
 
@@ -412,7 +431,7 @@
     padding: 12px;
     border-radius: var(--radius-sm);
     font-family: var(--font-mono);
-    font-size: 0.78rem;
+    font-size: 1rem;
     color: var(--accent-blue);
     overflow-x: auto;
     overflow-y: auto;
@@ -432,7 +451,7 @@
     padding: 8px 12px;
 }
 .log-entry {
-    font-size: 0.78rem;
+    font-size: 1rem;
     font-family: var(--font-mono);
     padding: 2px 0;
     border-bottom: 1px solid rgba(255,255,255,0.02);
